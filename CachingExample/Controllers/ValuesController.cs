@@ -1,44 +1,86 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 using System.Threading.Tasks;
+using CachingExample.Utilities;
+using CachingExample.ViewModels;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CachingExample.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api")]
     public class ValuesController : Controller
     {
-        // GET api/values
-        [HttpGet]
-        public IEnumerable<string> Get()
+
+        private readonly IMemoryCache _memoryCache;
+        private readonly IDistributedCache _distributedCache;
+
+        public ValuesController(
+            IMemoryCache memoryCache,
+            IDistributedCache distributedCache)
         {
-            return new string[] { "value1", "value2" };
+            _memoryCache = memoryCache;
+            _distributedCache = distributedCache;
         }
 
-        // GET api/values/5
-        [HttpGet("{id}")]
-        public string Get(int id)
+        // GET api/users
+        // Cache item in memory for specific time interval
+        [HttpGet("user/memory")]
+        public UserViewModel GetUserMemory()
         {
-            return "value";
+            var user = _memoryCache.Get<UserViewModel>("user");
+            if (user == null)
+            {
+                user = new UserViewModel
+                {
+                    Id = 1,
+                    Name = "Shahid",
+                    Email = "shahidcse@gmail.com",
+                    Address = "Dhaka"
+                };
+                _memoryCache.Set("user", user, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5)
+                });
+            }
+            return user;
         }
 
-        // POST api/values
-        [HttpPost]
-        public void Post([FromBody]string value)
+        // GET api/users
+        // Cache item in distributed redis server for specific time interval
+        [HttpGet("user/distributed")]
+        public async Task<UserViewModel> GetUserDistributed()
         {
+            var bytes = await _distributedCache.GetAsync("user");
+
+            var user = SerializationUtilities.Deserialize<UserViewModel>(bytes);
+
+            if (user == null)
+            {
+                user = new UserViewModel
+                {
+                    Id = 1,
+                    Name = "Shahid",
+                    Email = "shahidcse@gmail.com",
+                    Address = "Dhaka"
+                };
+
+                var data = SerializationUtilities.Serialize(user);
+                if (data != null)
+                {
+                    await _distributedCache.SetAsync("user", data, new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5)
+                    });
+                }
+            }
+            return user;
         }
 
-        // PUT api/values/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody]string value)
-        {
-        }
-
-        // DELETE api/values/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
-        {
-        }
     }
 }

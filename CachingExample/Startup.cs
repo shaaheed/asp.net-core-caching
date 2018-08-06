@@ -23,6 +23,18 @@ namespace CachingExample
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            // Add in-memory cache
+            services.AddMemoryCache();
+
+            // Add distributed redis cache
+            string configuration = Configuration.GetSection("RedisOptions:Configuration").Value;
+            string instanceName = Configuration.GetSection("RedisOptions:InstanceName").Value;
+            services.AddDistributedRedisCache(options =>
+            {
+                options.Configuration = configuration;
+                options.InstanceName = instanceName;
+            });
+
             services.AddMvc();
         }
 
